@@ -28,10 +28,10 @@ func generateNonce(length int) string {
 type SSOParams struct {
 	BaseURL               string
 	AdAccountID           string
-	AdAccountIDs          []string // v1.1.0: For AGENCY role with multiple ad accounts
+	AdAccountIDs          []string // For AGENCY role with multiple ad accounts
 	AdAccountTitle        string
-	AdManagerAccountID    string // v1.1.0: For Ad Manager Account roles
-	AdManagerAccountTitle string // v1.1.0: For Ad Manager Account title
+	AdManagerAccountID    string // For Ad Manager Account roles
+	AdManagerAccountTitle string // For Ad Manager Account title
 	Email                 string
 	ExternalUserID        string
 	Name                  string
@@ -48,15 +48,10 @@ func (p *SSOParams) createSignedRmpPortalURL() string {
 	var (
 		nonce     = generateNonce(16)
 		timestamp = strconv.FormatInt((time.Now()).Unix(), 10)
-		signature string
 	)
 
-	// Generate signature based on version
-	if p.Version == "1.1.0" {
-		signature = p.generateSignatureV110(nonce, timestamp)
-	} else {
-		signature = p.generateSignatureV100(nonce, timestamp)
-	}
+	// Generate signature
+	signature := p.generateSignature(nonce, timestamp, p.Version)
 
 	// Build query parameters
 	queryParams := url.Values{}
@@ -73,19 +68,17 @@ func (p *SSOParams) createSignedRmpPortalURL() string {
 	queryParams.Add("version", p.Version)
 	queryParams.Add("signature", signature)
 
-	// Add v1.1.0 fields if present
-	if p.Version == "1.1.0" {
-		if len(p.AdAccountIDs) > 0 {
-			for _, id := range p.AdAccountIDs {
-				queryParams.Add("ad_account_ids", id)
-			}
+	// Add optional fields if present
+	if len(p.AdAccountIDs) > 0 {
+		for _, id := range p.AdAccountIDs {
+			queryParams.Add("ad_account_ids", id)
 		}
-		if p.AdManagerAccountID != "" {
-			queryParams.Add("ad_manager_account_id", p.AdManagerAccountID)
-		}
-		if p.AdManagerAccountTitle != "" {
-			queryParams.Add("ad_manager_account_title", p.AdManagerAccountTitle)
-		}
+	}
+	if p.AdManagerAccountID != "" {
+		queryParams.Add("ad_manager_account_id", p.AdManagerAccountID)
+	}
+	if p.AdManagerAccountTitle != "" {
+		queryParams.Add("ad_manager_account_title", p.AdManagerAccountTitle)
 	}
 
 	// Add optional config parameters
@@ -95,31 +88,9 @@ func (p *SSOParams) createSignedRmpPortalURL() string {
 	return p.BaseURL + "/sso?" + queryParams.Encode()
 }
 
-// generateSignatureV100 creates the signature for v1.0.0
-func (p *SSOParams) generateSignatureV100(nonce, timestamp string) string {
-	params := []string{
-		p.AdAccountID,
-		p.AdAccountTitle,
-		p.Email,
-		p.ExternalUserID,
-		p.Name,
-		nonce,
-		p.Path,
-		p.PlatformID,
-		p.Role,
-		timestamp,
-		p.Version,
-	}
-	concatenatedString := strings.Join(params, "\n")
-
-	hash := hmac.New(sha256.New, []byte(p.Secret))
-	hash.Write([]byte(concatenatedString))
-	return base64.StdEncoding.EncodeToString(hash.Sum(nil))
-}
-
-// generateSignatureV110 creates the signature for v1.1.0
-// Parameters are in alphabetical order with new fields included
-func (p *SSOParams) generateSignatureV110(nonce, timestamp string) string {
+// generateSignature creates the HMAC-SHA256 signature for the SSO URL.
+// Parameters are in alphabetical order.
+func (p *SSOParams) generateSignature(nonce, timestamp, version string) string {
 	// Join ad_account_ids array with semicolon separator if present
 	adAccountIDs := ""
 	if len(p.AdAccountIDs) > 0 {
@@ -139,9 +110,9 @@ func (p *SSOParams) generateSignatureV110(nonce, timestamp string) string {
 		nonce,                   // nonce
 		p.Path,                  // path
 		p.PlatformID,            // platform_id
-		p.Role,                  // role
-		timestamp,               // timestamp
-		p.Version,               // version
+		p.Role,      // role
+		timestamp,   // timestamp
+		version,     // version
 	}
 	concatenatedString := strings.Join(params, "\n")
 
@@ -187,7 +158,7 @@ func exampleAdAccount() string {
 	return params.createSignedRmpPortalURL()
 }
 
-// exampleAdAccountAgency demonstrates creating a signed URL for multiple ad accounts with AD_ACCOUNT_AGENCY role (v1.1.0 feature).
+// exampleAdAccountAgency demonstrates creating a signed URL for multiple ad accounts with AD_ACCOUNT_AGENCY role.
 // This allows an agency user to access multiple ad accounts.
 func exampleAdAccountAgency() string {
 	const (
@@ -221,7 +192,7 @@ func exampleAdAccountAgency() string {
 	return params.createSignedRmpPortalURL()
 }
 
-// exampleAdManagerAccount demonstrates creating a signed URL for an ad manager account (v1.1.0 feature).
+// exampleAdManagerAccount demonstrates creating a signed URL for an ad manager account.
 // Works with AD_MANAGER_ACCOUNT_OWNER or AD_MANAGER_ACCOUNT_USER roles.
 func exampleAdManagerAccount() string {
 	const (

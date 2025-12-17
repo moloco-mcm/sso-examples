@@ -49,7 +49,7 @@ public class EmbeddedCampaignManagerExample {
   }
 
   // exampleAdAccountAgency demonstrates creating a signed URL for multiple ad
-  // accounts with AD_ACCOUNT_AGENCY role (v1.1.0 feature).
+  // accounts with AD_ACCOUNT_AGENCY role.
   // This allows an agency user to access multiple ad accounts.
   public static String exampleAdAccountAgency() throws Exception {
     String baseUrl = RMP_PORTAL_BASE_URL;
@@ -70,7 +70,7 @@ public class EmbeddedCampaignManagerExample {
   }
 
   // exampleAdManagerAccount demonstrates creating a signed URL for an ad manager
-  // account (v1.1.0 feature).
+  // account.
   // Works with AD_MANAGER_ACCOUNT_OWNER or AD_MANAGER_ACCOUNT_USER roles.
   public static String exampleAdManagerAccount() throws Exception {
     String baseUrl = RMP_PORTAL_BASE_URL;
@@ -108,16 +108,9 @@ public class EmbeddedCampaignManagerExample {
     random.nextBytes(bytes);
     String nonce = Base64.getEncoder().encodeToString(bytes);
 
-    // Generate signature based on version
-    String signature;
-    if ("1.1.0".equals(version)) {
-      signature = generateSignatureV110(adAccountId, adAccountIds, adAccountTitle, adManagerAccountId,
-          adManagerAccountTitle, email, externalUserId, name, nonce, path, platformId, role, timestamp, version,
-          secret);
-    } else {
-      signature = generateSignatureV100(adAccountId, adAccountTitle, email, externalUserId, name, nonce, path,
-          platformId, role, timestamp, version, secret);
-    }
+    // Generate signature
+    String signature = generateSignature(adAccountId, adAccountIds, adAccountTitle, adManagerAccountId,
+        adManagerAccountTitle, email, externalUserId, name, nonce, path, platformId, role, timestamp, version, secret);
 
     // construct final url with query params
     List<String> queryParamsList = new ArrayList<>();
@@ -134,19 +127,17 @@ public class EmbeddedCampaignManagerExample {
     queryParamsList.add(buildQueryParam("version", version));
     queryParamsList.add(buildQueryParam("signature", signature));
 
-    // Add v1.1.0 fields if present
-    if ("1.1.0".equals(version)) {
-      if (adAccountIds != null && adAccountIds.length > 0) {
-        for (String id : adAccountIds) {
-          queryParamsList.add(buildQueryParam("ad_account_ids", id));
-        }
+    // Add optional fields if present
+    if (adAccountIds != null && adAccountIds.length > 0) {
+      for (String id : adAccountIds) {
+        queryParamsList.add(buildQueryParam("ad_account_ids", id));
       }
-      if (adManagerAccountId != null && !adManagerAccountId.isEmpty()) {
-        queryParamsList.add(buildQueryParam("ad_manager_account_id", adManagerAccountId));
-      }
-      if (adManagerAccountTitle != null && !adManagerAccountTitle.isEmpty()) {
-        queryParamsList.add(buildQueryParam("ad_manager_account_title", adManagerAccountTitle));
-      }
+    }
+    if (adManagerAccountId != null && !adManagerAccountId.isEmpty()) {
+      queryParamsList.add(buildQueryParam("ad_manager_account_id", adManagerAccountId));
+    }
+    if (adManagerAccountTitle != null && !adManagerAccountTitle.isEmpty()) {
+      queryParamsList.add(buildQueryParam("ad_manager_account_title", adManagerAccountTitle));
     }
 
     queryParamsList.add(buildQueryParam("config:color_mode", colorMode));
@@ -157,25 +148,9 @@ public class EmbeddedCampaignManagerExample {
     return signedUrl;
   }
 
-  // generateSignatureV100 creates the signature for v1.0.0
-  private static String generateSignatureV100(String adAccountId, String adAccountTitle, String email,
-      String externalUserId, String name, String nonce, String path, String platformId, String role, String timestamp,
-      String version, String secret) throws Exception {
-    String[] paramArray = new String[] { adAccountId, adAccountTitle, email, externalUserId, name, nonce, path,
-        platformId, role, timestamp, version };
-    String paramString = String.join("\n", Arrays.asList(paramArray));
-
-    byte[] keyBytes = secret.getBytes();
-    SecretKeySpec signingKey = new SecretKeySpec(keyBytes, HMAC_SHA256_ALGORITHM);
-    Mac mac = Mac.getInstance(HMAC_SHA256_ALGORITHM);
-    mac.init(signingKey);
-    byte[] rawHmac = Base64.getEncoder().encode(mac.doFinal(paramString.getBytes(UTF_8_CHARSET)));
-    return new String(rawHmac, UTF_8_CHARSET);
-  }
-
-  // generateSignatureV110 creates the signature for v1.1.0
-  // Parameters are in alphabetical order with new fields included
-  private static String generateSignatureV110(String adAccountId, String[] adAccountIds, String adAccountTitle,
+  // generateSignature creates the HMAC-SHA256 signature for the SSO URL.
+  // Parameters are in alphabetical order.
+  private static String generateSignature(String adAccountId, String[] adAccountIds, String adAccountTitle,
       String adManagerAccountId, String adManagerAccountTitle, String email, String externalUserId, String name,
       String nonce, String path, String platformId, String role, String timestamp, String version, String secret)
       throws Exception {

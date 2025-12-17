@@ -13,43 +13,9 @@ const generateNonce = (length) => {
     .join("");
 };
 
-// generateSignatureV100 creates the signature for v1.0.0
-const generateSignatureV100 = (params, nonce, timestamp, secret) => {
-  const {
-    adAccountId,
-    adAccountTitle,
-    email,
-    externalUserId,
-    name,
-    path,
-    platformId,
-    role,
-    version,
-  } = params;
-
-  const ssoParams = [
-    adAccountId || "",
-    adAccountTitle || "",
-    email,
-    externalUserId,
-    name,
-    nonce,
-    path,
-    platformId,
-    role || "",
-    timestamp,
-    version,
-  ];
-
-  const concatenatedString = ssoParams.join("\n");
-  return createHmac("sha256", secret)
-    .update(concatenatedString)
-    .digest("base64");
-};
-
-// generateSignatureV110 creates the signature for v1.1.0
-// Parameters are in alphabetical order with new fields included
-const generateSignatureV110 = (params, nonce, timestamp, secret) => {
+// generateSignature creates the HMAC-SHA256 signature for the SSO URL.
+// Parameters are in alphabetical order.
+const generateSignature = (params, nonce, timestamp, secret, version) => {
   const {
     adAccountId,
     adAccountIds,
@@ -62,7 +28,6 @@ const generateSignatureV110 = (params, nonce, timestamp, secret) => {
     path,
     platformId,
     role,
-    version,
   } = params;
 
   // Join ad_account_ids array with semicolon separator if present
@@ -119,13 +84,8 @@ const createSignedRmpPortalUrl = (params) => {
   // create nonce
   const nonce = generateNonce(16);
 
-  // Generate signature based on version
-  let signature;
-  if (version === "1.1.0") {
-    signature = generateSignatureV110(params, nonce, timestamp, secret);
-  } else {
-    signature = generateSignatureV100(params, nonce, timestamp, secret);
-  }
+  // Generate signature
+  const signature = generateSignature(params, nonce, timestamp, secret, version);
 
   // build url params
   const queryParams = {
@@ -147,25 +107,23 @@ const createSignedRmpPortalUrl = (params) => {
 
   const queryString = new URLSearchParams(queryParams).toString();
 
-  // Add v1.1.0 array fields separately (URLSearchParams doesn't handle arrays well)
+  // Add optional array fields separately (URLSearchParams doesn't handle arrays well)
   let finalQueryString = queryString;
-  if (version === "1.1.0") {
-    if (adAccountIds && adAccountIds.length > 0) {
-      const adAccountIdsParams = adAccountIds
-        .map((id) => `ad_account_ids=${encodeURIComponent(id)}`)
-        .join("&");
-      finalQueryString += `&${adAccountIdsParams}`;
-    }
-    if (adManagerAccountId) {
-      finalQueryString += `&ad_manager_account_id=${encodeURIComponent(
-        adManagerAccountId
-      )}`;
-    }
-    if (adManagerAccountTitle) {
-      finalQueryString += `&ad_manager_account_title=${encodeURIComponent(
-        adManagerAccountTitle
-      )}`;
-    }
+  if (adAccountIds && adAccountIds.length > 0) {
+    const adAccountIdsParams = adAccountIds
+      .map((id) => `ad_account_ids=${encodeURIComponent(id)}`)
+      .join("&");
+    finalQueryString += `&${adAccountIdsParams}`;
+  }
+  if (adManagerAccountId) {
+    finalQueryString += `&ad_manager_account_id=${encodeURIComponent(
+      adManagerAccountId
+    )}`;
+  }
+  if (adManagerAccountTitle) {
+    finalQueryString += `&ad_manager_account_title=${encodeURIComponent(
+      adManagerAccountTitle
+    )}`;
   }
 
   return `${baseUrl}/sso?${finalQueryString}`;
@@ -184,9 +142,9 @@ const exampleAdAccount = () => {
   const role = "AD_ACCOUNT_OWNER";
   const platformId = "RMP_PLATFORM_ID";
   const secret = "super-secret";
+  const version = "1.1.0";
   const colorMode = "light"; // "light" | "dark" | "useDeviceSetting"
   const language = "en"; // "en" | "ko"
-  const version = "1.1.0";
 
   return createSignedRmpPortalUrl({
     baseUrl,
@@ -205,7 +163,7 @@ const exampleAdAccount = () => {
   });
 };
 
-// exampleAdAccountAgency demonstrates creating a signed URL for multiple ad accounts with AD_ACCOUNT_AGENCY role (v1.1.0 feature).
+// exampleAdAccountAgency demonstrates creating a signed URL for multiple ad accounts with AD_ACCOUNT_AGENCY role.
 // This allows an agency user to access multiple ad accounts.
 const exampleAdAccountAgency = () => {
   const baseUrl = "https://{YOUR-RMP-PORTAL_URL}";
@@ -217,9 +175,9 @@ const exampleAdAccountAgency = () => {
   const role = "AD_ACCOUNT_AGENCY";
   const platformId = "RMP_PLATFORM_ID";
   const secret = "super-secret";
+  const version = "1.1.0";
   const colorMode = "light";
   const language = "en";
-  const version = "1.1.0";
 
   return createSignedRmpPortalUrl({
     baseUrl,
@@ -237,7 +195,7 @@ const exampleAdAccountAgency = () => {
   });
 };
 
-// exampleAdManagerAccount demonstrates creating a signed URL for an ad manager account (v1.1.0 feature).
+// exampleAdManagerAccount demonstrates creating a signed URL for an ad manager account.
 // Works with AD_MANAGER_ACCOUNT_OWNER or AD_MANAGER_ACCOUNT_USER roles.
 const exampleAdManagerAccount = () => {
   const baseUrl = "https://{YOUR-RMP-PORTAL_URL}";
@@ -250,9 +208,9 @@ const exampleAdManagerAccount = () => {
   const role = "AD_MANAGER_ACCOUNT_OWNER";
   const platformId = "RMP_PLATFORM_ID";
   const secret = "super-secret";
+  const version = "1.1.0";
   const colorMode = "light";
   const language = "en";
-  const version = "1.1.0";
 
   return createSignedRmpPortalUrl({
     baseUrl,

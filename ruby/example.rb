@@ -3,35 +3,9 @@ require 'base64'
 require 'openssl'
 require 'uri'
 
-# generateSignatureV100 creates the signature for v1.0.0
-def generate_signature_v100(args, nonce, timestamp, secret)
-  param_array = [
-    args[:ad_account_id] || '',
-    args[:ad_account_title] || '',
-    args[:email],
-    args[:external_user_id],
-    args[:name],
-    nonce,
-    args[:path],
-    args[:platform_id],
-    args[:role] || '',
-    timestamp,
-    args[:version]
-  ]
-  param_string = param_array.join("\n")
-
-  Base64.encode64(
-    OpenSSL::HMAC.digest(
-      OpenSSL::Digest.new('sha256'),
-      secret,
-      param_string.force_encoding('utf-8')
-    )
-  ).strip
-end
-
-# generateSignatureV110 creates the signature for v1.1.0
-# Parameters are in alphabetical order with new fields included
-def generate_signature_v110(args, nonce, timestamp, secret)
+# generateSignature creates the HMAC-SHA256 signature for the SSO URL.
+# Parameters are in alphabetical order.
+def generate_signature(args, nonce, timestamp, secret, version)
   # Join ad_account_ids array with semicolon separator if present
   ad_account_ids_str = ''
   if args[:ad_account_ids] && args[:ad_account_ids].length > 0
@@ -53,7 +27,7 @@ def generate_signature_v110(args, nonce, timestamp, secret)
     args[:platform_id],                            # platform_id
     args[:role] || '',                             # role
     timestamp,                                     # timestamp
-    args[:version]                                 # version
+    version                                        # version
   ]
   param_string = param_array.join("\n")
 
@@ -73,12 +47,8 @@ def create_signed_rmp_portal_url(args)
   timestamp = Time.now.to_i.to_s
   nonce = SecureRandom.hex(10).to_s
 
-  # Generate signature based on version
-  signature = if version == '1.1.0'
-                generate_signature_v110(args, nonce, timestamp, secret)
-              else
-                generate_signature_v100(args, nonce, timestamp, secret)
-              end
+  # Generate signature
+  signature = generate_signature(args, nonce, timestamp, secret, version)
 
   query_params = {
     ad_account_id: args[:ad_account_id] || '',
@@ -99,18 +69,16 @@ def create_signed_rmp_portal_url(args)
 
   query_string = URI.encode_www_form(query_params)
 
-  # Add v1.1.0 fields if present
-  if version == '1.1.0'
-    if args[:ad_account_ids] && args[:ad_account_ids].length > 0
-      ad_account_ids_params = args[:ad_account_ids].map { |id| "ad_account_ids=#{URI.encode_www_form_component(id)}" }.join('&')
-      query_string += "&#{ad_account_ids_params}"
-    end
-    if args[:ad_manager_account_id] && !args[:ad_manager_account_id].empty?
-      query_string += "&ad_manager_account_id=#{URI.encode_www_form_component(args[:ad_manager_account_id])}"
-    end
-    if args[:ad_manager_account_title] && !args[:ad_manager_account_title].empty?
-      query_string += "&ad_manager_account_title=#{URI.encode_www_form_component(args[:ad_manager_account_title])}"
-    end
+  # Add optional fields if present
+  if args[:ad_account_ids] && args[:ad_account_ids].length > 0
+    ad_account_ids_params = args[:ad_account_ids].map { |id| "ad_account_ids=#{URI.encode_www_form_component(id)}" }.join('&')
+    query_string += "&#{ad_account_ids_params}"
+  end
+  if args[:ad_manager_account_id] && !args[:ad_manager_account_id].empty?
+    query_string += "&ad_manager_account_id=#{URI.encode_www_form_component(args[:ad_manager_account_id])}"
+  end
+  if args[:ad_manager_account_title] && !args[:ad_manager_account_title].empty?
+    query_string += "&ad_manager_account_title=#{URI.encode_www_form_component(args[:ad_manager_account_title])}"
   end
 
   base_url + '/sso?' + query_string
@@ -140,7 +108,7 @@ def example_ad_account
   create_signed_rmp_portal_url(args)
 end
 
-# exampleAdAccountAgency demonstrates creating a signed URL for multiple ad accounts with AD_ACCOUNT_AGENCY role (v1.1.0 feature).
+# exampleAdAccountAgency demonstrates creating a signed URL for multiple ad accounts with AD_ACCOUNT_AGENCY role.
 # This allows an agency user to access multiple ad accounts.
 def example_ad_account_agency
   args = {
@@ -161,7 +129,7 @@ def example_ad_account_agency
   create_signed_rmp_portal_url(args)
 end
 
-# exampleAdManagerAccount demonstrates creating a signed URL for an ad manager account (v1.1.0 feature).
+# exampleAdManagerAccount demonstrates creating a signed URL for an ad manager account.
 # Works with AD_MANAGER_ACCOUNT_OWNER or AD_MANAGER_ACCOUNT_USER roles.
 def example_ad_manager_account
   ad_manager_account_id = 'my-ad-manager-account-id'
