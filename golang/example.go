@@ -209,7 +209,7 @@ func exampleAdAccountAgency() string {
 		Email:          email,
 		ExternalUserID: externalUserID,
 		Name:           name,
-		Path:           "/embed/sponsored-ads/cm",
+		Path:           "/embed/sponsored-ads",
 		PlatformID:     platformID,
 		Role:           role,
 		Secret:         secret,
